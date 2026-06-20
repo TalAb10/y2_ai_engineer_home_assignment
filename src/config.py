@@ -35,7 +35,7 @@ class Settings(BaseSettings):
 
     # ── Extraction thresholds ──────────────────────────────────────────────
     pattern_coverage_threshold: float = Field(
-        default=0.95,
+        default=0.90,
         description="Min fraction of the query covered by patterns/rules before calling the LLM.",
     )
 

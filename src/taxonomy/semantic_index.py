@@ -1,6 +1,6 @@
 """Semantic taxonomy index — FAISS nearest-neighbour over embedded taxonomy values.
 
-At build time (scripts/build_taxonomy_index.py):
+At build time (taxonomy/build_index.py):
   - Every canonical taxonomy value is embedded with text-embedding-3-small.
   - The embeddings + metadata are saved to disk as two files:
       taxonomy.faiss   — FAISS IndexFlatIP (cosine similarity via L2-normalised vectors)

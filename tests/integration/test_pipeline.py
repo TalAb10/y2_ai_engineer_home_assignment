@@ -1,81 +1,15 @@
-"""Tests for the pattern-based extraction feature.
+"""End-to-end pipeline tests — full graph (sanitize → … → validate) via _parse.
 
-Covers the pattern library, the price/year disambiguation that motivated the
-design, the self-learning loop (LLM teaches once, pattern reused after), and the
-normalization feedback loop.
+Covers the behaviours that only emerge from the whole pipeline: price/year
+disambiguation in context, subcategory-consistency filtering, and the
+self-learning loop (LLM teaches once, deterministic path reuses it). Pure
+data-structure tests live in tests/unit/.
 """
 
 from __future__ import annotations
 
-import pytest
-
 from llm.client import LLMResult, TokenUsage
-from patterns.library import PatternLibrary, Segment, abstract, coverage, merge_spans, SpanMatch
 
-# asyncio_mode=auto (pyproject) runs async tests automatically — no marks needed.
-
-
-# ── Abstraction ────────────────────────────────────────────────────────────────
-
-def test_abstract_blanks_each_digit():
-    assert abstract("עד 9000 שח") == "עד ???? שח"
-    assert abstract("2018-2021") == "????-????"
-    assert abstract("צבע לבן") == "צבע לבן"        # no digits → unchanged
-    assert len(abstract("70000")) == len("70000")  # length preserved
-
-
-# ── PatternLibrary ───────────────────────────────────────────────────────────────
-
-def test_learn_and_scan_roundtrip():
-    lib = PatternLibrary()
-    lib.learn("אייפון 13 פרו", "model")
-    hits = lib.scan("אייפון 14 פרו")        # same shape + same digit count → matches
-    assert any(h.types == {"model"} for h in hits)
-
-
-def test_different_digit_count_is_a_different_pattern():
-    # One "?" per digit: a 2-digit and a 3-digit number are distinct shapes.
-    lib = PatternLibrary()
-    lib.learn("אייפון 13 פרו", "model")
-    assert lib.scan("אייפון 256 פרו") == []
-
-
-def test_learn_adds_meanings_never_overwrites():
-    lib = PatternLibrary()
-    lib.learn("עד 2018", "year_range")
-    lib.learn("עד 9000", "price")            # same abstract shape "עד ????"
-    hits = lib.scan("עד 5000")
-    assert hits and hits[0].types == {"year_range", "price"}
-
-
-def test_scan_respects_word_boundaries():
-    lib = PatternLibrary()
-    lib.learn("תל אביב", "city")
-    assert lib.scan("בתל אביב יפו") == [] or all(  # 'תל' inside 'בתל' must not match
-        h.start == 0 or "בתל" not in "בתל אביב"[h.start - 1:h.start + 1] for h in lib.scan("בתל אביב")
-    )
-
-
-def test_too_short_pattern_not_learned():
-    lib = PatternLibrary()
-    lib.learn("3", "rooms")          # single "?" after abstraction — too generic
-    assert lib.size() == 0
-
-
-# ── merge_spans / coverage ──────────────────────────────────────────────────────
-
-def test_merge_overlapping_spans_unions_types():
-    merged = merge_spans([SpanMatch(0, 8, {"rooms"}), SpanMatch(0, 1, {"price"})])
-    assert len(merged) == 1
-    assert merged[0].types == {"rooms", "price"}
-
-
-def test_coverage_counts_salient_words():
-    seg = Segment(text="דירה", type="property_type", start=0, end=4)
-    assert coverage([seg], "דירה גדולה") == pytest.approx(0.5)   # 1 of 2 salient words
-
-
-# ── Disambiguation through the full pipeline ─────────────────────────────────────
 
 async def _parse(query, ctx):
     from graph.build import build_graph
@@ -83,6 +17,8 @@ async def _parse(query, ctx):
     raw = await build_graph(ctx).ainvoke(GraphState(raw_q=query))
     return GraphState.model_validate(dict(raw))
 
+
+# ── Price / year disambiguation through the full pipeline ─────────────────────────
 
 async def test_bare_9000_is_price_not_year(ctx):
     # 9000 is not a valid year → must be a price, in any category.
@@ -106,7 +42,6 @@ async def test_year_range_in_vehicle(ctx):
 
 async def test_bin_year_range_is_not_a_price(ctx):
     # Regression: "בין 2015 ל 2018" with no currency is a year span, not a price.
-    # The range branch used to emit it as מחיר before any year check.
     final = await _parse("טויוטה בין 2015 ל 2018", ctx)
     assert final.category == "רכב"
     assert final.params.get("שנה") == {"min": 2015, "max": 2018}
@@ -120,9 +55,8 @@ async def test_bin_price_range_with_currency(ctx):
 
 
 async def test_year_at_taxonomy_max_survives_validation(ctx):
-    # Regression: the extractor's accepted year range matches the schema/taxonomy
-    # bound, so the boundary year validates instead of being extracted then silently
-    # dropped.
+    # The extractor's accepted year range matches the schema/taxonomy bound, so the
+    # boundary year validates instead of being extracted then silently dropped.
     final = await _parse("טויוטה קורולה 2025", ctx)
     assert final.category == "רכב"
     assert final.params.get("שנה") == {"min": 2025, "max": 2025}
@@ -134,20 +68,6 @@ async def test_out_of_range_year_is_not_extracted_or_mispriced(ctx):
     final = await _parse("טויוטה קורולה עד 2027", ctx)
     assert "שנה" not in final.params
     assert "מחיר" not in final.params
-
-
-# ── extract_price: range-branch disambiguation (unit) ────────────────────────────
-
-def test_extract_price_range_unit():
-    from patterns.numbers import extract_price
-    # currency cue → price range
-    assert extract_price("בין 1000 ל 2000 שח") == {"min": 1000, "max": 2000}
-    # large non-year numbers, no currency → still a price range
-    assert extract_price("בין 500000 ל 800000") == {"min": 500000, "max": 800000}
-    # both endpoints are years, no currency → not a price (left for year extraction)
-    assert extract_price("בין 2015 ל 2018") is None
-    # range bound to a non-price unit → not a price (left for the rooms extractor)
-    assert extract_price("בין 3 ל 5 חדרים") is None
 
 
 # ── Self-learning loop ───────────────────────────────────────────────────────────
@@ -169,14 +89,42 @@ class _TeachingLLM:
         )
 
 
-def _ctx_with_llm(taxonomy, settings, llm):
+class _StrollerLLM:
+    """Fake LLM: labels the uncovered gap as a subcategory + supplies an embedding."""
+    def __init__(self):
+        self.calls = 0
+
+    def is_available(self):
+        return True
+
+    async def embed(self, text):
+        return [0.1, 0.2, 0.3]
+
+    async def complete_structured(self, **_):
+        self.calls += 1
+        return LLMResult(
+            parsed={"segments": [{"text": "עגלת תינוק", "type": "subcategory"}],
+                    "normalizations": []},
+            refusal=None, usage=TokenUsage(model="fake"),
+        )
+
+
+class _FakeIndex:
+    """Fake semantic index: always canonicalises the gap to the 'עגלות' subcategory."""
+    def search(self, embedding, field_type=None, k=8, threshold=0.4):
+        from types import SimpleNamespace
+        return [SimpleNamespace(value="עגלות", field_type="subcategory")]
+
+
+def _ctx_with_llm(taxonomy, settings, llm, semantic_index=None):
     from cache.cache import Cache
     from graph.context import NodeContext
     from observability import metrics as m
     from patterns.library import PatternLibrary
     from patterns.normalizations import NormalizationDB
     return NodeContext(taxonomy=taxonomy, llm=llm, cache=Cache(100), settings=settings,
-                       metrics=m, pattern_library=PatternLibrary(), normalization_db=NormalizationDB())
+                       metrics=m, pattern_library=PatternLibrary(), normalization_db=NormalizationDB(),
+                       semantic_index=semantic_index)
 
 
 async def test_pattern_learned_then_reused_skips_llm(taxonomy, settings):
@@ -193,6 +141,25 @@ async def test_pattern_learned_then_reused_skips_llm(taxonomy, settings):
     assert llm.calls == 0                          # pattern reused — no LLM
     assert second.params.get("מותג") == "במבה"
     assert second.params.get("מחיר", {}).get("max") == 80
+
+
+async def test_semantic_resolution_learned_then_skips_llm(taxonomy, settings):
+    # A phrase the semantic index has to canonicalise ("עגלת תינוק" → "עגלות") is
+    # learned as a normalization, so the second identical-shape query resolves on the
+    # deterministic path with no LLM.
+    llm = _StrollerLLM()
+    ctx = _ctx_with_llm(taxonomy, settings, llm, semantic_index=_FakeIndex())
+
+    first = await _parse("עגלת תינוק כחדש עד 600 שח", ctx)
+    assert first.llm_used is True
+    assert first.params.get("תת_קטגוריה") == "עגלות"
+    assert ctx.normalization_db.all().get("עגלת תינוק") == "עגלות"
+
+    llm.calls = 0
+    second = await _parse("עגלת תינוק כחדש עד 800 שח", ctx)   # same shape, new number
+    assert llm.calls == 0                                       # canonicalised → no LLM
+    assert second.params.get("תת_קטגוריה") == "עגלות"
+    assert second.params.get("מחיר", {}).get("max") == 800
 
 
 async def test_subcategory_consistency_filter_drops_mismatched_spec(ctx):

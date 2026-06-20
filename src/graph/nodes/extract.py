@@ -91,13 +91,17 @@ async def run(state: GraphState, ctx: NodeContext) -> dict:
                 if not segment_types.valid_types(seg.text, {seg.type}, tax):
                     continue
                 segments.append(seg)
-                # Learn the raw surface form (not the canonical replacement) so the
-                # library recognises the same user phrasing next time, skipping the LLM.
-                # raw_text == text means it already passed the gate above; only when a
-                # semantic hint changed the text do we re-validate the surface form, so a
-                # plausible-but-wrong label is never learned.
-                if seg.raw_text == seg.text or segment_types.valid_types(seg.raw_text, {seg.type}, tax):
+                if seg.raw_text == seg.text:
+                    # Surface form is itself the value (free-text, or an exact taxonomy
+                    # term) — learn the shape so the same phrasing skips the LLM next time.
                     lib.learn(seg.raw_text, seg.type)
+                else:
+                    # Semantic search canonicalised a surface phrase to a taxonomy value
+                    # (e.g. "עגלת תינוק" → "עגלות"). The pattern library can't reproduce
+                    # this — the raw form doesn't resolve to a value on its own — so learn
+                    # it as a normalization: next time, normalize rewrites the phrase and
+                    # the deterministic path resolves it, closing the loop with no LLM call.
+                    ctx.normalization_db.learn(seg.raw_text, seg.text)
             learned = _learn_normalizations(parsed.get("normalizations", []), ctx)
             if learned:
                 notes.append("נלמדו נורמליזציות: " + ", ".join(learned))

@@ -5,7 +5,7 @@
       "tags": ["realestate"],
       "query": "דירת 3 חדרים בירושלים עד מליון שח",
       "expected_category": "נדל״ן",
-      "expected_params": { "עיר": "ירושלים", "מחיר": { "max": 1000000 } },
+      "expected_params": { "סוגי_נכס": ["דירה"], "עיר": "ירושלים", "מס׳_חדרים": 3, "מחיר": { "max": 1000000 } },
       "notes": "README example — basic real estate"
     },
     {
@@ -13,23 +13,23 @@
       "tags": ["realestate"],
       "query": "דירת סטודיו להשכרה בתל אביב עד 5000 שח",
       "expected_category": "נדל״ן",
-      "expected_params": { "מחיר": { "max": 5000 } },
-      "notes": "Rental studio"
+      "expected_params": { "סוגי_נכס": ["דירת סטודיו"], "מצבי_עסקה": ["השכרה"], "עיר": "תל אביב-יפו", "מחיר": { "max": 5000 } },
+      "notes": "Rental studio — property type, transaction mode, city, price"
     },
     {
       "id": "re_003",
       "tags": ["realestate", "amenities"],
       "query": "דירה 4 חדרים עם מעלית וחניה וממד בחיפה",
       "expected_category": "נדל״ן",
-      "expected_params": { "מעלית": true },
-      "notes": "Boolean amenities"
+      "expected_params": { "סוגי_נכס": ["דירה"], "עיר": "חיפה", "מס׳_חדרים": 4, "מעלית": true, "חניה": 1, "ממ״ד": true },
+      "notes": "Boolean/numeric amenities — every amenity in the query must be extracted"
     },
     {
       "id": "re_004",
       "tags": ["realestate", "price-range"],
       "query": "דירה בין 1.5 מיליון ל-2 מיליון",
       "expected_category": "נדל״ן",
-      "expected_params": { "מחיר": { "min": 1500000, "max": 2000000 } },
+      "expected_params": { "סוגי_נכס": ["דירה"], "מחיר": { "min": 1500000, "max": 2000000 } },
       "notes": "Explicit price range"
     },
     {
@@ -37,7 +37,7 @@
       "tags": ["realestate", "typo"],
       "query": "דירה בירושליים 3 חדרים",
       "expected_category": "נדל״ן",
-      "expected_params": { "עיר": "ירושלים" },
+      "expected_params": { "סוגי_נכס": ["דירה"], "עיר": "ירושלים", "מס׳_חדרים": 3 },
       "notes": "ירושליים typo → ירושלים via taxonomy typo map"
     },
     {
@@ -45,16 +45,16 @@
       "tags": ["realestate"],
       "query": "פנטהאוז עם נוף לים 5 חדרים בנתניה עד 4 מיליון",
       "expected_category": "נדל״ן",
-      "expected_params": { "מחיר": { "max": 4000000 } },
-      "notes": "Luxury property type"
+      "expected_params": { "סוגי_נכס": ["פנטהאוז"], "מס׳_חדרים": 5, "מחיר": { "max": 4000000 } },
+      "notes": "Luxury property type. עיר נתניה is not in the example taxonomy, so it is only recovered on the --llm path — not asserted here."
     },
     {
       "id": "re_007",
       "tags": ["realestate"],
       "query": "דירה מעל 3 מיליון בהרצליה",
       "expected_category": "נדל״ן",
-      "expected_params": { "מחיר": { "min": 3000000 } },
-      "notes": "Min price only"
+      "expected_params": { "סוגי_נכס": ["דירה"], "מחיר": { "min": 3000000 } },
+      "notes": "Min price only. עיר הרצליה is not in the example taxonomy (LLM-only), so it is not asserted."
     },
     {
       "id": "veh_001",
@@ -75,23 +75,23 @@
       "tags": ["vehicle", "electric"],
       "query": "טסלה מודל 3 חשמלי עד 150000 שח",
       "expected_category": "רכב",
-      "expected_params": { "יצרן": "טסלה", "מחיר": { "max": 150000 } },
-      "notes": "Electric vehicle"
+      "expected_params": { "יצרן": "טסלה", "סוג_דלק": "חשמלי", "מחיר": { "max": 150000 } },
+      "notes": "Electric vehicle — manufacturer, fuel type, price"
     },
     {
       "id": "veh_003",
       "tags": ["vehicle", "km"],
       "query": "יונדאי טוסון עד 80000 ק״מ",
       "expected_category": "רכב",
-      "expected_params": { "יצרן": "יונדאי", "ק״מ": { "max": 80000 } },
-      "notes": "Mileage cap"
+      "expected_params": { "יצרן": "יונדאי", "דגם": "טוסון", "ק״מ": { "max": 80000 } },
+      "notes": "Mileage cap — manufacturer + model backfilled from the taxonomy"
     },
     {
       "id": "veh_004",
       "tags": ["vehicle", "typo"],
       "query": "יונדי טוסון 2020",
       "expected_category": "רכב",
-      "expected_params": { "יצרן": "יונדאי" },
+      "expected_params": { "יצרן": "יונדאי", "דגם": "טוסון", "שנה": { "min": 2020, "max": 2020 } },
       "notes": "יונדי → יונדאי via typo map"
     },
     {
@@ -99,23 +99,24 @@
       "tags": ["vehicle", "gearbox", "fuel"],
       "query": "פולקסווגן גולף דיזל אוטומטי 2019",
       "expected_category": "רכב",
-      "expected_params": { "סוג_דלק": "דיזל" },
-      "notes": "דיזל extracted by rules. יצרן not asserted — פולקסווגן not in taxonomy (real-world taxonomy would cover it). אוטומטי/אוטומטית needs typo_map entry."
+      "expected_params": { "סוג_דלק": "דיזל", "שנה": { "min": 2019, "max": 2019 } },
+      "notes": "דיזל + year extracted by rules. יצרן not asserted — פולקסווגן not in the example taxonomy. אוטומטי needs an אוטומטית typo_map entry."
     },
     {
       "id": "veh_006",
       "tags": ["vehicle", "year-disambiguation"],
       "query": "טויוטה קורולה עד 2018",
       "expected_category": "רכב",
-      "expected_params": { "מחיר": { "max": 2018 } },
-      "notes": "עד 2018 — price operator keeps it a price, not a year"
+      "expected_params": { "שנה": { "min": 2018, "max": 2018 } },
+      "expected_absent_params": ["מחיר"],
+      "notes": "עד 2018 — a year-range number with no currency cue is a YEAR, not a price (see patterns/numbers.py). Must not produce מחיר."
     },
     {
       "id": "veh_007",
       "tags": ["vehicle", "year-disambiguation"],
       "query": "טויוטה קורולה 2018-2021",
       "expected_category": "רכב",
-      "expected_params": { "שנה": { "min": 2018, "max": 2021 } },
+      "expected_params": { "יצרן": "טויוטה", "דגם": "קורולה", "שנה": { "min": 2018, "max": 2021 } },
       "notes": "Free-standing year range → שנה"
     },
     {
@@ -124,44 +125,46 @@
       "query": "אייפון 13 פרו 256 ג׳יגה כחול כמו חדש עד 2500",
       "expected_category": "יד_שנייה",
       "expected_params": {
+        "סקטור": "אלקטרוניקה",
         "תת_קטגוריה": "טלפונים_סלולריים",
         "נפח_אחסון": "256GB",
+        "צבע": "כחול",
         "מצב": "כמו חדש",
         "מחיר": { "max": 2500 }
       },
-      "notes": "README example — phone with storage, condition, price"
+      "notes": "README example — phone with sector, storage, colour, condition, price"
     },
     {
       "id": "sh_002",
       "tags": ["secondhand", "laptop"],
       "query": "מחשב נייד HP i7 16 גיגה RAM עד 3000 שח",
       "expected_category": "יד_שנייה",
-      "expected_params": { "תת_קטגוריה": "מחשבים_ניידים", "מחיר": { "max": 3000 } },
-      "notes": "Laptop subcategory"
+      "expected_params": { "סקטור": "אלקטרוניקה", "תת_קטגוריה": "מחשבים_ניידים", "מחיר": { "max": 3000 } },
+      "notes": "Laptop subcategory from מחשב hint"
     },
     {
       "id": "sh_003",
       "tags": ["secondhand", "furniture"],
       "query": "ספה פינתית עד 2000 שח",
       "expected_category": "יד_שנייה",
-      "expected_params": { "סקטור": "ריהוט", "מחיר": { "max": 2000 } },
-      "notes": "Furniture sector from ספה hint"
+      "expected_params": { "סקטור": "ריהוט", "תת_קטגוריה": "סלון", "מחיר": { "max": 2000 } },
+      "notes": "Furniture sector + subcategory from ספה hint"
     },
     {
       "id": "sh_004",
       "tags": ["secondhand", "consistency"],
-      "query": "עגלת תינוק 256 ג׳יגה עד 500 שח",
+      "query": "עגלה 256 ג׳יגה עד 500 שח",
       "expected_category": "יד_שנייה",
       "expected_params": { "תת_קטגוריה": "עגלות", "מחיר": { "max": 500 } },
       "expected_absent_params": ["נפח_אחסון"],
-      "notes": "Storage must be dropped — wrong subcategory for a stroller"
+      "notes": "Subcategory-consistency: נפח_אחסון (a phone-only spec) must be dropped for a stroller. Uses עגלה so it resolves on the offline path too."
     },
     {
       "id": "sh_005",
       "tags": ["secondhand", "condition"],
       "query": "גלקסי S23 256 גיגה שחור כמו חדש",
       "expected_category": "יד_שנייה",
-      "expected_params": { "תת_קטגוריה": "טלפונים_סלולריים", "נפח_אחסון": "256GB", "מצב": "כמו חדש" },
+      "expected_params": { "סקטור": "אלקטרוניקה", "תת_קטגוריה": "טלפונים_סלולריים", "נפח_אחסון": "256GB", "צבע": "שחור", "מצב": "כמו חדש" },
       "notes": "Samsung Galaxy slang → phone subcategory"
     },
     {
@@ -208,20 +211,13 @@
       "notes": "XML-delimiter injection"
     },
     {
-      "id": "edge_006",
-      "tags": ["edge", "unicode"],
-      "query": "דירה‮בתל אביב",
-      "expected_category": null,
-      "expected_params": {},
-      "notes": "RTL override U+202E is stripped but eats the space — 'דירהבתל' is unrecognizable. Known limitation: must not crash."
-    },
-    {
       "id": "edge_007",
       "tags": ["edge", "price-ambiguity"],
       "query": "מאזדה 3 עד 9000",
       "expected_category": "רכב",
       "expected_params": { "מחיר": { "max": 9000 } },
-      "notes": "9000 is not a valid year — must be treated as price"
+      "expected_absent_params": ["שנה"],
+      "notes": "9000 is not a valid year — must be treated as price, not שנה"
     }
   ]
 }

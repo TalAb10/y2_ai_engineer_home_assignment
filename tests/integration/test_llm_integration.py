@@ -22,7 +22,7 @@ import os
 import pytest
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 # --- Skip guard -----------------------------------------------------------------
 # Skip the whole file if no real API key is configured.
@@ -93,14 +93,16 @@ async def test_llm_available(real_ctx):
 
 async def test_unknown_brand_triggers_llm(real_ctx):
     """
-    A novel second-hand brand that is not in the taxonomy forces the LLM to label
-    the gap. Verify llm_used=True, params are valid, and cost is tracked.
+    A brand that is not in the taxonomy forces the LLM to label the gap. The
+    subcategory word ("פסנתר") anchors the category deterministically, so the test
+    is stable regardless of how the model segments the unknown brand. Verify
+    llm_used=True, the category is valid, params are schema-clean, and cost is tracked.
     """
     from taxonomy.schemas import CATEGORY_TO_SCHEMA
 
-    # "פיג'ו" is a French car brand in the taxonomy, but "דאצ'יה" (Dacia) may not be
-    # — use a clearly novel item to guarantee low pattern coverage.
-    state = await _parse("שמלת כלה וינטאג' עד 1500 שח", real_ctx)
+    # "פסנתר" → קלידים subcategory (deterministic, → יד_שנייה). "ימהה" (Yamaha) is not
+    # in the taxonomy, so it is an uncovered gap that forces the LLM.
+    state = await _parse("פסנתר ימהה עד 5000 שח", real_ctx)
 
     assert state.llm_used is True, "Expected LLM to be called for an uncovered query"
     assert state.category in CATEGORY_TO_SCHEMA, f"Invalid category: {state.category}"
@@ -183,17 +185,20 @@ async def test_self_learning_loop(real_ctx):
         normalization_db=NormalizationDB(),
     )
 
-    first = await _parse("פנדר סטראטוקסטר עד 4000 שח", fresh_ctx)
+    # "גיטרה" → גיטרות subcategory (deterministic anchor → יד_שנייה), while "פנדר"
+    # (not in the taxonomy) is the novel segment the LLM must label and learn.
+    first = await _parse("גיטרה פנדר עד 4000 שח", fresh_ctx)
     assert first.llm_used is True, "Expected LLM on first call with empty pattern library"
     patterns_after_first = fresh_ctx.pattern_library.size()
     assert patterns_after_first > 0, "Pattern library should have learned at least one pattern"
 
-    # Same abstract shape — only the number changes.
-    second = await _parse("פנדר סטראטוקסטר עד 5000 שח", fresh_ctx)
+    # Same abstract shape — only the number changes. "גיטרה" stays covered by the hint
+    # and "פנדר" is now covered by the learned pattern, so the LLM is not called.
+    second = await _parse("גיטרה פנדר עד 5000 שח", fresh_ctx)
     assert second.llm_used is False, (
         f"Expected LLM to be skipped on second call (pattern library has {patterns_after_first} patterns)"
     )
-    # The extracted brand / model should match the first call.
+    assert second.category == "יד_שנייה"
     assert second.params.get("מחיר", {}).get("max") == 5000.0
 
 

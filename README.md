@@ -11,7 +11,7 @@ cp .env.example .env
 # Edit .env and set OPENAI_API_KEY
 
 # (Optional) Build the semantic FAISS index — requires API key, costs < $0.01
-python scripts/build_taxonomy_index.py
+python src/taxonomy/build_index.py
 ```
 
 ### Option A — Backend only (Dockerfile)
@@ -83,6 +83,7 @@ Add `"debug": true` to receive internal extraction details (segments, coverage, 
 | Status | Body | Cause |
 |---|---|---|
 | 400 | `{"error": "blocked_query"}` | Injection attempt confirmed by security pipeline |
+| 400 | `{"error": "query_too_long", "max_chars": 512, "got": N}` | Query longer than `MAX_INPUT_CHARS` |
 
 ---
 
@@ -250,7 +251,7 @@ When the LLM labels a new segment (e.g. surface text `"פנדר"` → type `bran
 **How each path relates to the targets:**
 - Cache hit path: no network calls — in-process LRU lookup + JSON serialisation only. Comfortably within the 150 ms target.
 - Rules-only path: taxonomy span scan + regex numerics, all in-process. Also within the 150 ms target. This is the path the pattern-first design pushes most traffic onto.
-- LLM path (the rare, slow minority): the 600 ms target is **not guaranteed** — TTFT can exceed it on its own. We only reduce the controllable parts (send just the uncovered gap as a short prompt; bound the worst case with a 20 s timeout + 1 retry). The real distribution must be read from the `yad2_request_latency_seconds` histogram, not assumed. The lower the LLM-call rate (driven up by the pattern library and cache warming over time), the less this slow tail affects overall p95.
+- LLM path (the rare, slow minority): the 600 ms target is **not guaranteed** — TTFT can exceed it on its own. We only reduce the controllable parts (send just the uncovered gap as a short prompt; bound the worst case with a 20 s timeout + 1 retry). The real distribution must be read from the `yad2_request_latency_seconds` Prometheus histogram (exposed at `/metrics`; see the Observability section), not assumed. The lower the LLM-call rate (driven up by the pattern library and cache warming over time), the less this slow tail affects overall p95.
 
 **Horizontal scaling:**
 The service is stateless — the only mutable per-instance state is the in-process LRU cache and the PatternLibrary. Swap `create_cache()` for a Redis-backed implementation (same `get/set/health` interface) and the PatternLibrary for a shared persistent store to run any number of instances behind a load balancer with no coordination required. The FAISS index is read-only and loaded from disk at startup.
@@ -279,8 +280,8 @@ The service uses a pattern-first strategy that minimises LLM calls:
 | Path | Condition | LLM calls |
 |---|---|---|
 | Cache hit | Seen query | 0 |
-| Pattern-only | ≥95% of query covered by rules | 0 |
-| LLM gap-fill | Coverage < 95% | 1 segmentation call |
+| Pattern-only | ≥90% of query covered by rules | 0 |
+| LLM gap-fill | Coverage < 90% | 1 segmentation call |
 | Security deepcheck | Injection marker found | +1 classification call |
 
 **Segmentation call** (gap-fill): ~400 input tokens (fixed system prompt + annotated query) + ~80 output tokens.  
@@ -309,7 +310,7 @@ The service uses a pattern-first strategy that minimises LLM calls:
 
 1. **Cache warm-up**: Pre-parse the top-N most frequent queries from search logs on deploy. A 65% hit rate is conservative — popular marketplaces typically see 80%+ repeat queries.
 2. **Prompt caching** *(opportunity, not yet realised)*: The segmentation system prompt is a fixed prefix, so it is a candidate for OpenAI's automatic prompt caching. We do **not** enable anything explicitly — OpenAI auto-caches only prompts ≥1024 tokens, and our system prompt is likely below that, so in practice caching probably does not trigger today. The cost accounting already credits cached tokens (`_build_usage` bills `cached_tokens` at a reduced rate), so *if* the prompt is enlarged past the threshold or the model caches it, the saving is captured. To actually realise it, pad/restructure the prompt to cross the caching threshold and confirm via the `cached_tokens` field in `/metrics`.
-3. **Lightweight classifier + selective LLM calls**: The pattern coverage score already acts as a classifier — if coverage is at or above `PATTERN_COVERAGE_THRESHOLD` (default 0.95), the LLM is skipped entirely. Raising `PATTERN_COVERAGE_THRESHOLD` tightens this gate further. A dedicated lightweight classifier (e.g. a small embedding-based model) could replace the coverage heuristic for more accurate LLM-call routing.
+3. **Lightweight classifier + selective LLM calls**: The pattern coverage score already acts as a classifier — if coverage is at or above `PATTERN_COVERAGE_THRESHOLD` (default 0.90), the LLM is skipped entirely. Raising `PATTERN_COVERAGE_THRESHOLD` tightens this gate further. A dedicated lightweight classifier (e.g. a small embedding-based model) could replace the coverage heuristic for more accurate LLM-call routing.
 4. **Model downgrade for security deepcheck**: The security deepcheck is a binary classification task (legitimate vs. injection) — much simpler than segmentation. In a real system I would run an evaluation on a labelled set of flagged queries to measure whether a smaller, cheaper model matches the accuracy of `gpt-5-mini` on this task. If it does, the deepcheck cost drops significantly since the model cost dominates at scale.
 5. **Prompt compression**: The segmentation system prompt lists all allowed segment types with one-line descriptions. Removing descriptions for types already matched by rules in the current query would reduce input tokens by ~30% on LLM calls. Not yet implemented — worth measuring against accuracy before applying.
 6. **Embeddings + rules replace LLM for common slang**: Once the PatternLibrary has seen a surface form once, it never calls the LLM for it again. At steady state, embeddings + taxonomy rules handle the long tail; LLM calls concentrate on truly novel queries.
@@ -355,39 +356,47 @@ histogram_quantile(0.95, rate(yad2_request_latency_seconds_bucket[5m]))
 See [ARCHITECTURE.md](ARCHITECTURE.md#security) for the full threat model.
 
 **Defenses:**
-- **Input sanitization**: NFKC normalisation, emoji/control-char strip, RTL-override strip, 512-char truncation — before any LLM call.
+- **Input length cap**: requests longer than `MAX_INPUT_CHARS` (512) are rejected at the API with a 400 `query_too_long`, before any processing. The sanitize node also hard-truncates to 512 as defense-in-depth (e.g. when the graph is invoked directly).
+- **Input sanitization**: NFKC normalisation, emoji/control-char strip, RTL-override strip — before any LLM call.
 - **Two-layer injection detection**: (1) fast keyword scanner (4 categories: instruction_override, role_injection, prompt_extraction, delimiter_injection), then (2) LLM binary deepcheck to eliminate false positives.
 - **Fixed system prompts**: `SEGMENTATION_SYSTEM` and the security classifier prompt are module-level constants — never dynamically constructed from user input.
 - **User query isolation**: The query is always injected as delimited `<query>…</query>` user-role content, never concatenated into the system prompt (instruction-hierarchy defence, OWASP LLM01).
 - **Strict schema enforcement**: All LLM output goes through per-vertical Pydantic models with `extra="forbid"`. Unknown keys are dropped before the response is returned.
 - **Allowlisted categories and fields**: `VALID_CATEGORIES` is a frozenset; field names and enum values are locked in Pydantic Literal types derived from the taxonomy.
 
-**Security tests** (`tests/test_security_redteam.py`): classic injection, role injection, delimiter injection, prompt extraction, oversized input, RTL override, null bytes, percent-encoded payloads, empty query, gibberish query.
+**Security tests** (`tests/integration/test_security_redteam.py`): classic injection, role injection, delimiter injection, prompt extraction, oversized input, RTL override, null bytes, percent-encoded payloads, empty query, gibberish query.
 
 ---
 
 ## Testing
 
 ```bash
-# Offline tests (no API key required)
+# Offline tests (no API key required) — units, integration, and the labelled dataset
 pytest
 
+# Just the labelled dataset cases (one parametrized test per case)
+pytest tests/dataset          # or: pytest tests/dataset -k re_001
+
 # Live LLM integration tests (requires OPENAI_API_KEY in .env)
-pytest tests/test_llm_integration.py -v -s
+pytest tests/integration/test_llm_integration.py -v -s
 ```
 
-Test suites:
+Tests are split by scope: `tests/unit/` (fast, offline, function-level),
+`tests/integration/` (full graph via `_parse`), and `tests/dataset/` (a labelled
+dataset, `cases.json`, run as one parametrized pytest case each).
 
-| File | Coverage |
+| Area | Coverage |
 |---|---|
-| `tests/test_examples.py` | Golden examples — all three verticals |
-| `tests/test_security_redteam.py` | 11 red-team / abuse cases |
-| `tests/test_patterns.py` | Regex and numeric extraction |
-| `tests/nodes/test_sanitize.py` | Sanitize node unit tests |
-| `tests/nodes/test_normalize.py` | Normalize node unit tests |
-| `tests/nodes/test_validate.py` | Schema validation unit tests |
-| `tests/test_llm_integration.py` | End-to-end LLM path (live) |
-| `tests/eval_cases.json` | 26 labelled eval cases with expected params |
+| `tests/unit/test_library.py` | Pattern abstraction, learning, span merge, coverage |
+| `tests/unit/test_numbers.py` | Numeric extractors + price/year disambiguation |
+| `tests/unit/test_loader.py` | Taxonomy matching: clitic prefixes, inflection, prefix-extend |
+| `tests/unit/test_cache.py` | LRU cache + cache-key normalisation |
+| `tests/unit/nodes/` | Per-node units: sanitize, normalize, extract, validate, security_check |
+| `tests/integration/test_examples.py` | Golden examples — all three verticals |
+| `tests/integration/test_pipeline.py` | End-to-end disambiguation + self-learning loop |
+| `tests/integration/test_security_redteam.py` | 11 red-team / abuse cases |
+| `tests/integration/test_llm_integration.py` | End-to-end LLM path (live) |
+| `tests/dataset/` | `test_cases.py` runs 25 labelled cases from `cases.json` |
 
 ---
 
@@ -401,7 +410,7 @@ All settings are read from environment variables (or `.env`):
 | `LLM_MODEL` | `gpt-5-mini` | Model for segmentation and security calls |
 | `LLM_ENABLED` | `true` | Set `false` for rules-only offline mode |
 | `LLM_TIMEOUT_S` | `20` | Per-call timeout in seconds |
-| `PATTERN_COVERAGE_THRESHOLD` | `0.95` | Min pattern coverage before calling LLM |
-| `MAX_INPUT_CHARS` | `512` | Input truncation limit |
+| `PATTERN_COVERAGE_THRESHOLD` | `0.90` | Min pattern coverage before calling LLM |
+| `MAX_INPUT_CHARS` | `512` | Max query length; longer requests are rejected with 400 `query_too_long` |
 | `CACHE_SIZE` | `10000` | In-process LRU capacity |
 | `LOG_LEVEL` | `INFO` | Logging level |

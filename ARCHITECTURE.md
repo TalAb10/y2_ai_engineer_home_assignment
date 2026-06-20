@@ -53,7 +53,7 @@ POST /parse
               │  2. learned PatternLibrary│
               │  3. deterministic numerics│
               │  4. LLM gap-fill (if      │
-              │     coverage < 95%)       │
+              │     coverage < 90%)       │
               │  5. learn new segments    │
               └──────────────┬────────────┘
                              ▼
@@ -105,7 +105,7 @@ The main extraction node. Two parallel tracks:
 1. **Non-numeric segments** — taxonomy span lookup + learned `PatternLibrary` scan. Segments are typed (city, manufacturer, model, amenity, condition, …). Overlapping spans are merged by priority.
 2. **Numeric fields** — deterministic regex for price, rooms, area, floor, km, year, storage. Year is only read in a vehicle context and never when preceded by a price operator (`עד 9000` stays a price).
 
-If pattern coverage of the query is below the `PATTERN_COVERAGE_THRESHOLD` (default 0.95), the LLM is called for the uncovered portions only. The LLM receives:
+If pattern coverage of the query is below the `PATTERN_COVERAGE_THRESHOLD` (default 0.90), the LLM is called for the uncovered portions only. The LLM receives:
 - The full query for context
 - Already-identified parts annotated inline as `[text](type)`
 - Only the uncovered gap text to label
@@ -146,7 +146,7 @@ This means the LLM call rate decays naturally over time as the service sees more
 
 The current correctness signal is the offline test suite plus a manual stress run across ~60 queries. That is enough to validate the happy paths and the security defences, but a production deployment needs a deeper, continuous evaluation loop. Specifically, I would:
 
-- **Build a labelled evaluation set** (hundreds of real Hebrew queries with expected category + params) and run it on every change to measure precision/recall per field and per vertical — not just pass/fail on a handful of golden cases. `tests/eval_cases.json` and `tests/run_eval.py` are the seed of this.
+- **Build a labelled evaluation set** (hundreds of real Hebrew queries with expected category + params) and run it on every change to measure precision/recall per field and per vertical — not just pass/fail on a handful of golden cases. `tests/dataset/cases.json` (run as parametrized pytest cases in `test_cases.py`) is the seed of this.
 - **Evaluate the LLM segmentation step in isolation**: how often does it mislabel a segment, drop a meaningful token, or hallucinate a value? Each failure mode (e.g. labelling a bare number as a model) should be a tracked metric with a regression guard, not a bug found by chance.
 - **Check whether the LLM has the context it needs to label safely.** The segmenter only sees the query, the already-identified spans, and the FAISS taxonomy hints. Some queries are genuinely ambiguous without more context (e.g. brand vs. model, sector disambiguation). I would measure where the LLM guesses without sufficient signal and decide, per case, whether to feed it more taxonomy context, add few-shot examples, or fall back to "unknown" rather than guess.
 - **Validate the self-learning loop continuously.** Because learned patterns are reused, a single bad learned pattern compounds. I would log every learned pattern, periodically audit them against the taxonomy, and add a confidence threshold / human-review step before a pattern is promoted to the shared persistent store.
@@ -158,11 +158,11 @@ These are deliberately framed as evaluation and observability work: the architec
 
 ## Semantic FAISS Index
 
-At build time (`scripts/build_taxonomy_index.py`), every canonical taxonomy value is embedded with `text-embedding-3-small` and stored in a FAISS `IndexFlatIP` (cosine via L2-normalised vectors). At runtime the index is loaded once and injected into `NodeContext`.
+At build time (`src/taxonomy/build_index.py`), every canonical taxonomy value is embedded with `text-embedding-3-small` and stored in a FAISS `IndexFlatIP` (cosine via L2-normalised vectors). At runtime the index is loaded once and injected into `NodeContext`.
 
 During LLM gap-fill, two concurrent embedding calls are made (gap text + full query) and the top-8 nearest taxonomy values per field type are passed to the LLM as hints. This bridges Hebrew morphological variants (e.g. `עגלת תינוק → עגלות`) that exact lookup would miss.
 
-The index is generated once, offline, by `scripts/build_taxonomy_index.py` (the only place embeddings are computed — the request path makes no embedding call to build it). It is then loaded from disk at startup if present. If the index files are absent, the service logs a warning and runs without semantic hints: exact taxonomy lookup, learned patterns, and numeric rules all still work — only the morphological-variant bridging is disabled. To enable semantic hints in a fresh clone or container, run the build script (or ship the generated `taxonomy.faiss` / `taxonomy.meta.json` alongside the image).
+The index is generated once, offline, by `src/taxonomy/build_index.py` (the only place embeddings are computed — the request path makes no embedding call to build it). It is then loaded from disk at startup if present. If the index files are absent, the service logs a warning and runs without semantic hints: exact taxonomy lookup, learned patterns, and numeric rules all still work — only the morphological-variant bridging is disabled. To enable semantic hints in a fresh clone or container, run the build script (or ship the generated `taxonomy.faiss` / `taxonomy.meta.json` alongside the image).
 
 ---
 
@@ -198,7 +198,7 @@ The Pydantic schemas in `src/taxonomy/schemas.py` are derived from this taxonomy
 ### Single instance
 - Target: ≥12 QPS (≈1M queries/day)
 - Cache / rules path: ≤150 ms p95 — achievable, no network calls
-- LLM path: ≤600 ms p95 is the target, **not a guarantee** — it is dominated by the API round-trip (network + time-to-first-token + generation), and TTFT alone can exceed it under load. Bounded by a 20 s timeout + 1 retry; the real distribution must be read from the `yad2_request_latency_seconds` histogram.
+- LLM path: ≤600 ms p95 is a target, **not a guarantee** — this path makes a network call, so it is dominated by the API round-trip (network + time-to-first-token + generation), and TTFT alone can exceed 600 ms under load. The design does **not** try to make this call fast; it makes it **rare**. Patterns, the cache, and the self-learning library resolve the large majority of queries with no LLM call at all, so this slow path barely moves the overall p95 — the lower the LLM-call rate (which keeps dropping as the library warms up), the less the slow tail matters. We bound the worst case with a 20 s timeout + 1 retry, and read the real distribution from the `yad2_request_latency_seconds` Prometheus histogram (exposed at `/metrics`, queried with `histogram_quantile`) rather than assuming it.
 
 ### Horizontal scaling
 The service is fully stateless — all mutable state is:

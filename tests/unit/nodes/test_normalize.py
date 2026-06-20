@@ -60,6 +60,18 @@ def test_normalization_applied_records_single_word(ctx):
     assert result["normalization_applied"] == {"בירושליים": "בירושלים"}
 
 
+def test_normalization_applies_multiword_phrase(ctx):
+    # Learned canonicalisations can map a multi-word phrase to a single canonical
+    # token (e.g. "עגלת תינוק" → "עגלות"). Per-word correction can't express this;
+    # the phrase pass must. This is what closes the self-learning loop for segments
+    # the semantic index canonicalised.
+    ctx.normalization_db.learn("עגלת תינוק", "עגלות")
+    state = make_state("עגלת תינוק כחדש עד 600 שח")
+    result = run(state, ctx)
+    assert result["clean_q"] == "עגלות כחדש עד 600 שח"
+    assert result["normalization_applied"] == {"עגלת תינוק": "עגלות"}
+
+
 def test_normalization_applied_handles_one_to_many_expansion(ctx):
     # Regression: 'תלאביב' → 'תל אביב-יפו' expands one token into two. A positional
     # zip of before/after tokens used to misalign and fabricate corrections like

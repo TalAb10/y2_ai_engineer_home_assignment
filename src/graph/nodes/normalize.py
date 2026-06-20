@@ -55,8 +55,22 @@ def _apply_typo_map(text: str, typo_map: dict[str, str]) -> tuple[str, dict[str,
     here, per word, rather than by zipping the before/after token lists: a single
     typo can expand into several words (e.g. 'תלאביב' → 'תל אביב-יפו'), which shifts
     every later token and would corrupt a positional zip.
+
+    Multi-word keys (learned canonicalisations like 'עגלת תינוק' → 'עגלות') are applied
+    first as whole-phrase replacements — per-word correction cannot rewrite a phrase.
+    This is what lets the self-learning loop close for segments the semantic index had
+    to canonicalise: once learned, the deterministic path resolves them with no LLM.
     """
     changes: dict[str, str] = {}
+
+    # Phrase (multi-word) keys first, longest first so a longer match wins over a
+    # shorter one nested inside it.
+    for phrase in sorted((k for k in typo_map if " " in k), key=len, reverse=True):
+        replacement = typo_map[phrase]
+        bounded = re.compile(rf"(?<!\S){re.escape(phrase)}(?!\S)")
+        if bounded.search(text):
+            text = bounded.sub(lambda _m, r=replacement: r, text)
+            changes[phrase] = replacement
 
     def _correct_word(word: str) -> str:
         corrected = word
