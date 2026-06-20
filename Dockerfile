@@ -19,6 +19,10 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 # Copy application source
 COPY src/ ./src/
 COPY yad2_search_taxonomy.json .
+# Prebuilt FAISS taxonomy index — loaded at startup from the repo root (/app) so
+# semantic hints work in the container. Without these the app still runs, but with
+# semantic search disabled (exact lookup + rules only).
+COPY taxonomy.faiss taxonomy.meta.json ./
 
 # Non-root user for security
 RUN useradd --create-home appuser && chown -R appuser /app
