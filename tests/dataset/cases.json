@@ -127,12 +127,13 @@
       "expected_params": {
         "סקטור": "אלקטרוניקה",
         "תת_קטגוריה": "טלפונים_סלולריים",
+        "מותג": "אפל",
         "נפח_אחסון": "256GB",
         "צבע": "כחול",
         "מצב": "כמו חדש",
         "מחיר": { "max": 2500 }
       },
-      "notes": "README example — phone with sector, storage, colour, condition, price"
+      "notes": "README example — phone with all fields; מותג: אפל is inferred from אייפון by the complete node"
     },
     {
       "id": "sh_002",
@@ -164,8 +165,8 @@
       "tags": ["secondhand", "condition"],
       "query": "גלקסי S23 256 גיגה שחור כמו חדש",
       "expected_category": "יד_שנייה",
-      "expected_params": { "סקטור": "אלקטרוניקה", "תת_קטגוריה": "טלפונים_סלולריים", "נפח_אחסון": "256GB", "צבע": "שחור", "מצב": "כמו חדש" },
-      "notes": "Samsung Galaxy slang → phone subcategory"
+      "expected_params": { "סקטור": "אלקטרוניקה", "תת_קטגוריה": "טלפונים_סלולריים", "מותג": "סמסונג", "נפח_אחסון": "256GB", "צבע": "שחור", "מצב": "כמו חדש" },
+      "notes": "Samsung Galaxy slang → phone subcategory; מותג: סמסונג inferred from גלקסי"
     },
     {
       "id": "edge_001",

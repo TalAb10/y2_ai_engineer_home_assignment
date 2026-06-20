@@ -157,7 +157,7 @@ Prometheus text format. See [Observability](#observability) for the full metric 
 
 | Query | category | Key params |
 |---|---|---|
-| `אייפון 13 פרו 256 ג׳יגה כמו חדש עד 2500` | `יד_שנייה` | `סקטור: אלקטרוניקה`, `תת_קטגוריה: טלפונים_סלולריים`, `נפח_אחסון: 256GB`, `מצב: כמו חדש`, `מחיר: {max: 2500}` |
+| `אייפון 13 פרו 256 ג׳יגה כמו חדש עד 2500` | `יד_שנייה` | `סקטור: אלקטרוניקה`, `תת_קטגוריה: טלפונים_סלולריים`, `מותג: אפל` *(inferred from אייפון)*, `נפח_אחסון: 256GB`, `מצב: כמו חדש`, `מחיר: {max: 2500}` |
 | `מחשב נייד HP i7 16 גיגה RAM עד 3000 שח` | `יד_שנייה` | `סקטור: אלקטרוניקה`, `תת_קטגוריה: מחשבים_ניידים`, `מותג: HP`, `דגם: i7`, `מחיר: {max: 3000}` |
 | `ספה פינתית עד 2000 שח` | `יד_שנייה` | `סקטור: ריהוט`, `תת_קטגוריה: סלון`, `מחיר: {max: 2000}` |
 
@@ -166,12 +166,14 @@ Prometheus text format. See [Observability](#observability) for the full metric 
 {
   "category": "יד_שנייה",
   "params": {
+    "סקטור": "אלקטרוניקה",
     "תת_קטגוריה": "טלפונים_סלולריים",
+    "מותג": "אפל",
     "נפח_אחסון": "256GB",
     "מצב": "כמו חדש",
     "מחיר": { "max": 2500 }
   },
-  "confidence": 0.78,
+  "confidence": 0.94,
   "notes": []
 }
 ```
@@ -198,6 +200,12 @@ POST /parse
                   400 blocked                        │   extract   │
                                                      │ (patterns + │
                                                      │  LLM gaps)  │
+                                                     └──────┬──────┘
+                                                            ▼
+                                                     ┌─────────────┐
+                                                     │  complete   │
+                                                     │ (infer brand│
+                                                     │  & implied) │
                                                      └──────┬──────┘
                                                             ▼
                                                      ┌─────────────┐
@@ -235,6 +243,15 @@ For queries that still have uncovered gaps after rules run, the service embeds b
 ### Self-learning pattern library
 
 When the LLM labels a new segment (e.g. surface text `"פנדר"` → type `brand`), the mapping is written to an in-process `PatternLibrary`. On the next request with the same surface form, the library scan matches before coverage falls below the threshold — the LLM is not called. LLM call rate decays naturally as the service warms up.
+
+### Inferred fields (entity completion)
+
+Some fields are implied by others — a user who types `אייפון` obviously means brand `אפל`. Rather than make every extractor aware of this, a dedicated `complete` stage runs after extraction (so values are already canonical) and fills in implied fields, taxonomy-driven:
+
+- A **brand the user typed** (`דל`, `סמסונג`, `LG`) is recognised straight from the taxonomy's `מותגים` lists — no hand-written rules, and it backfills the subcategory when the brand is unique to one.
+- A **colloquial product term** (`אייפון`→`אפל`, `גלקסי`→`סמסונג`) resolves through a small alias layer (`product_aliases.json`) — the one piece of "this product is made by this brand" knowledge the taxonomy doesn't encode. It's validated against the taxonomy at load, so it can never introduce a brand that doesn't exist.
+
+This generalises the `model → manufacturer` backfill the vehicle path already does, and keeps "find what's stated" (`extract`) separate from "infer what's implied" (`complete`).
 
 ---
 
@@ -391,7 +408,7 @@ dataset, `cases.json`, run as one parametrized pytest case each).
 | `tests/unit/test_numbers.py` | Numeric extractors + price/year disambiguation |
 | `tests/unit/test_loader.py` | Taxonomy matching: clitic prefixes, inflection, prefix-extend |
 | `tests/unit/test_cache.py` | LRU cache + cache-key normalisation |
-| `tests/unit/nodes/` | Per-node units: sanitize, normalize, extract, validate, security_check |
+| `tests/unit/nodes/` | Per-node units: sanitize, normalize, extract, complete, validate, security_check |
 | `tests/integration/test_examples.py` | Golden examples — all three verticals |
 | `tests/integration/test_pipeline.py` | End-to-end disambiguation + self-learning loop |
 | `tests/integration/test_security_redteam.py` | 11 red-team / abuse cases |

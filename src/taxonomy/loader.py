@@ -84,6 +84,13 @@ class TaxonomyIndex:
     sh_sectors: set[str] = field(default_factory=set)
     sh_subcategories: set[str] = field(default_factory=set)
     sh_conditions: set[str] = field(default_factory=set)
+    # Brand inference: canonical brands, and which subcategory each is listed under.
+    sh_brands: set[str] = field(default_factory=set)
+    sh_brand_to_subcats: dict[str, set[str]] = field(default_factory=dict)
+    sh_subcat_to_sector: dict[str, str] = field(default_factory=dict)
+    # Colloquial product term → canonical brand (e.g. "אייפון" → "אפל"). Curated
+    # data, validated at load time against sh_brands so it can never invent a brand.
+    sh_product_aliases: dict[str, str] = field(default_factory=dict)
 
     # Raw taxonomy (kept for LLM prompt building and schema derivation)
     raw: dict[str, Any] = field(default_factory=dict)
@@ -101,8 +108,26 @@ def load(taxonomy_path: Path) -> TaxonomyIndex:
     _load_vehicles(index, categories.get("רכב", {}))
     _load_secondhand(index, categories.get("יד_שנייה", {}))
     _load_typos(index, categories)
+    _load_product_aliases(index)
 
     return index
+
+
+_PRODUCT_ALIASES_PATH = Path(__file__).resolve().parent / "product_aliases.json"
+
+
+def _load_product_aliases(index: TaxonomyIndex) -> None:
+    """Load colloquial product term → brand aliases, keeping only brands the taxonomy
+    actually defines. A curated alias whose brand is unknown is dropped, so the layer
+    can never introduce a brand outside the taxonomy."""
+    if not _PRODUCT_ALIASES_PATH.exists():
+        return
+    with open(_PRODUCT_ALIASES_PATH, encoding="utf-8") as f:
+        raw: dict[str, str] = json.load(f)
+    for alias, brand in raw.items():
+        canonical = _normalise_term(brand)
+        if canonical in index.sh_brands:
+            index.sh_product_aliases[_normalise_term(alias)] = canonical
 
 
 # ── Per-vertical loaders ───────────────────────────────────────────────────────
@@ -207,7 +232,14 @@ def _load_secondhand(index: TaxonomyIndex, sh_data: dict[str, Any]) -> None:
         for subcategory_name, subcategory_data in subcats.items():
             subcategory = _normalise_term(subcategory_name)
             index.sh_subcategories.add(subcategory)
+            index.sh_subcat_to_sector[subcategory] = sector
             _register(index, [subcategory_name], category)
+
+            # Index brands so a brand the user types resolves to its subcategory(ies).
+            for brand in subcategory_data.get("מותגים", []):
+                canonical = _normalise_term(brand)
+                index.sh_brands.add(canonical)
+                index.sh_brand_to_subcats.setdefault(canonical, set()).add(subcategory)
 
             # Brands, conditions, specs within each sub-category
             for key in ("מותגים", "מצב", "סוג", "טכנולוגיה", "רזולוציה", "סוגי_רהיט", "חומר"):

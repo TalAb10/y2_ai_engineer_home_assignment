@@ -58,6 +58,13 @@ POST /parse
               └──────────────┬────────────┘
                              ▼
               ┌───────────────────────────┐
+              │ complete                  │
+              │  infer implied fields     │
+              │  (brand from product/     │
+              │   taxonomy), validated    │
+              └──────────────┬────────────┘
+                             ▼
+              ┌───────────────────────────┐
               │ validate                  │
               │  Pydantic schema per      │
               │  vertical (extra=forbid)  │
@@ -112,6 +119,15 @@ If pattern coverage of the query is below the `PATTERN_COVERAGE_THRESHOLD` (defa
 - FAISS semantic search suggestions (nearest canonical taxonomy values)
 
 The LLM returns typed segment labels and optional typo corrections. Each labelled segment is kept only if its value-extractor resolves to a real taxonomy value — the same `valid_types` gate the deterministic track applies. An unresolvable enum label (e.g. the LLM tagging `במבצע`/"on sale" as a real-estate `transaction_mode`, which has no matching taxonomy value) is dropped, so it cannot cast a category vote while contributing no value. Free-text types (city, model, brand, condition) always resolve. Surviving segments are written into the in-process `PatternLibrary` so the same surface form skips the LLM on future requests.
+
+### complete
+Inference, not extraction. `extract` finds what the query *states*; `complete` fills in what those values *imply* — running after extraction (so every value is already a canonical taxonomy form) and before validation (so inferred fields are schema-checked too).
+
+Its current rule is brand inference for second-hand items, where the user usually names a *product*, not a *brand* (`אייפון`, not `אפל`). The brand is obvious and lives in the taxonomy, so it is resolved from either:
+1. a colloquial **product alias** (`אייפון → אפל`), a small curated layer in `product_aliases.json`, or
+2. a **brand the user typed directly**, recognised straight from the taxonomy's `מותגים` lists.
+
+When a brand pins down a single subcategory (e.g. `דל` → only `מחשבים_ניידים`), the subcategory and sector are backfilled too. Every inferred brand is validated against the taxonomy — it is only set if it is listed under the (known) subcategory — so this stage can never introduce a value outside the taxonomy. This generalises the `model → manufacturer` backfill that `extract` already performs for vehicles. The alias layer is validated at load: an alias whose brand isn't in the taxonomy is dropped.
 
 ### validate
 Runs the extracted params through the per-vertical Pydantic model. `extra="forbid"` means any key not explicitly declared in the schema causes a validation error — so even if the LLM returns a hallucinated field, it is structurally impossible for it to appear in the API response. Enum membership, numeric bounds, and range consistency are also enforced here.

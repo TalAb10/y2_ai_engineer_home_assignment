@@ -1,0 +1,11 @@
+{
+  "_comment": "Colloquial product/family terms → canonical second-hand brand. The irreducible 'this product is made by this brand' knowledge that the taxonomy's brand lists don't encode (the taxonomy lists אפל, not אייפון). Every brand here is validated against the taxonomy at load (loader._load_product_aliases) and dropped if unknown, so this layer can never invent a brand. Adding a product = a one-line data edit, not code.",
+  "אייפון": "אפל",
+  "אייפד": "אפל",
+  "מקבוק": "אפל",
+  "איימק": "אפל",
+  "גלקסי": "סמסונג",
+  "פיקסל": "גוגל",
+  "רדמי": "שיאומי",
+  "וואןפלוס": "וואןפלוס"
+}

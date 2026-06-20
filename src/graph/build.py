@@ -23,7 +23,9 @@ from __future__ import annotations
 from langgraph.graph import END, StateGraph
 
 from graph.context import NodeContext
-from graph.nodes import cache_lookup, cache_store, extract, normalize, sanitize, security_check, validate
+from graph.nodes import (
+    cache_lookup, cache_store, complete, extract, normalize, sanitize, security_check, validate,
+)
 from graph.state import GraphState
 
 
@@ -59,6 +61,7 @@ def build_graph(ctx: NodeContext) -> StateGraph:
     builder.add_node("normalize",      _bind(normalize,      ctx))
     builder.add_node("cache_lookup",   _bind(cache_lookup,   ctx))
     builder.add_node("extract",        _bind(extract,        ctx))
+    builder.add_node("complete",       _bind(complete,       ctx))
     builder.add_node("validate",       _bind(validate,       ctx))
     builder.add_node("cache_store",    _bind(cache_store,    ctx))
 
@@ -69,7 +72,8 @@ def build_graph(ctx: NodeContext) -> StateGraph:
                                   {END: END, "normalize": "normalize"})
     builder.add_edge("normalize",      "cache_lookup")
     builder.add_conditional_edges("cache_lookup", _route_after_cache, {END: END, "extract": "extract"})
-    builder.add_edge("extract",        "validate")
+    builder.add_edge("extract",        "complete")
+    builder.add_edge("complete",       "validate")
     builder.add_edge("validate",       "cache_store")
     builder.add_edge("cache_store",    END)
 
