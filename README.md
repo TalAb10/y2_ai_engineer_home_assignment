@@ -325,13 +325,22 @@ The service uses a pattern-first strategy that minimises LLM calls:
 
 ### Cost reduction levers
 
-1. **Cache warm-up**: Pre-parse the top-N most frequent queries from search logs on deploy. A 65% hit rate is conservative — popular marketplaces typically see 80%+ repeat queries.
-2. **Prompt caching** *(opportunity, not yet realised)*: The segmentation system prompt is a fixed prefix, so it is a candidate for OpenAI's automatic prompt caching. We do **not** enable anything explicitly — OpenAI auto-caches only prompts ≥1024 tokens, and our system prompt is likely below that, so in practice caching probably does not trigger today. The cost accounting already credits cached tokens (`_build_usage` bills `cached_tokens` at a reduced rate), so *if* the prompt is enlarged past the threshold or the model caches it, the saving is captured. To actually realise it, pad/restructure the prompt to cross the caching threshold and confirm via the `cached_tokens` field in `/metrics`.
-3. **Lightweight classifier + selective LLM calls**: The pattern coverage score already acts as a classifier — if coverage is at or above `PATTERN_COVERAGE_THRESHOLD` (default 0.90), the LLM is skipped entirely. Raising `PATTERN_COVERAGE_THRESHOLD` tightens this gate further. A dedicated lightweight classifier (e.g. a small embedding-based model) could replace the coverage heuristic for more accurate LLM-call routing.
-4. **Model downgrade for security deepcheck**: The security deepcheck is a binary classification task (legitimate vs. injection) — much simpler than segmentation. In a real system I would run an evaluation on a labelled set of flagged queries to measure whether a smaller, cheaper model matches the accuracy of `gpt-5-mini` on this task. If it does, the deepcheck cost drops significantly since the model cost dominates at scale.
-5. **Prompt compression**: The segmentation system prompt lists all allowed segment types with one-line descriptions. Removing descriptions for types already matched by rules in the current query would reduce input tokens by ~30% on LLM calls. Not yet implemented — worth measuring against accuracy before applying.
-6. **Embeddings + rules replace LLM for common slang**: Once the PatternLibrary has seen a surface form once, it never calls the LLM for it again. At steady state, embeddings + taxonomy rules handle the long tail; LLM calls concentrate on truly novel queries.
-7. **Batch embeddings**: The FAISS index is built once offline; per-request embedding calls only happen during gap-fill and are batched via `asyncio.gather`.
+**Already implemented — savings realised today:**
+
+1. **Exact-match cache.** Repeated queries are served from the in-process LRU cache with no LLM call.
+2. **Rules-first extraction with a self-expanding rule layer.** Deterministic rules resolve most queries in-process; the LLM is invoked only when rule coverage falls below `PATTERN_COVERAGE_THRESHOLD` (default 0.90), and only over the uncovered fragment. The rule layer is also self-learning — each LLM result is persisted so subsequent similar queries are resolved without an LLM call:
+   - **Patterns** — a word→type label assigned by the LLM is retained, so the rules recognise that surface form on later requests.
+   - **Typo dictionary** — a misspelling→canonical correction is retained and applied in `normalize`, allowing the query to reach the cache and rules directly.
+
+   The net effect is progressively fewer LLM calls and a smaller payload per call.
+3. **Gated security deepcheck.** The injection deepcheck is a second LLM call, but it runs only for queries that trigger a keyword flag (~1% of traffic). The remaining ~99% incur at most one LLM call, and most none.
+
+**Not yet implemented — further reductions:**
+
+4. **Shared, persistent cache (Redis).** Move the cache to a shared Redis instance so all service instances share hits rather than each warming its own copy, and persist it with snapshots (RDB/AOF) so it survives restarts, deploys, and failures — returning warm rather than cold and avoiding a surge of LLM calls after each restart. (The 65% cache-hit rate used in the estimate above is an assumption, not a measured figure.)
+5. **Dedicated routing classifier.** Replace the coverage heuristic that gates the LLM with a small classifier for more accurate routing.
+6. **Per-task model selection.** Both LLM calls — segmentation and the security deepcheck — currently use `gpt-5-mini`. A smaller model may suffice for either; the decision should be driven by evaluation — run the labelled dataset for extraction and a flagged-query set for the deepcheck, and select the lowest-cost model that preserves accuracy on each.
+7. **Prompt optimization.** The segmentation prompt is sent on every LLM call, so reducing it lowers input-token cost directly — for example, omitting field-type options the rules have already resolved. Subject to evaluation before adoption.
 
 ---
 
