@@ -1,0 +1,169 @@
+{
+  "title": "Yad2 Search Parser",
+  "uid": "yad2-parser",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "10s",
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Request Rate (QPS)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 0, "w": 8, "h": 6 },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "yad2prometheus" },
+          "expr": "sum(rate(yad2_requests_total[1m]))",
+          "legendFormat": "total QPS"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "yad2prometheus" },
+          "expr": "sum by (category) (rate(yad2_requests_total[1m]))",
+          "legendFormat": "{{category}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Error Rate",
+      "type": "timeseries",
+      "gridPos": { "x": 8, "y": 0, "w": 8, "h": 6 },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "yad2prometheus" },
+          "expr": "sum by (error_type) (rate(yad2_errors_total[1m]))",
+          "legendFormat": "{{error_type}}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Cache Hit Ratio",
+      "type": "gauge",
+      "gridPos": { "x": 16, "y": 0, "w": 8, "h": 6 },
+      "options": {
+        "minVizValue": 0,
+        "maxVizValue": 1,
+        "thresholds": {
+          "steps": [
+            { "color": "red", "value": 0 },
+            { "color": "yellow", "value": 0.4 },
+            { "color": "green", "value": 0.7 }
+          ]
+        }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "yad2prometheus" },
+          "expr": "rate(yad2_cache_hits_total[5m]) / (rate(yad2_cache_hits_total[5m]) + rate(yad2_cache_misses_total[5m]))",
+          "legendFormat": "hit ratio"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Latency — p50 / p95 / p99",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 6, "w": 12, "h": 6 },
+      "fieldConfig": {
+        "defaults": { "unit": "s" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "yad2prometheus" },
+          "expr": "histogram_quantile(0.50, rate(yad2_request_latency_seconds_bucket[5m]))",
+          "legendFormat": "p50"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "yad2prometheus" },
+          "expr": "histogram_quantile(0.95, rate(yad2_request_latency_seconds_bucket[5m]))",
+          "legendFormat": "p95"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "yad2prometheus" },
+          "expr": "histogram_quantile(0.99, rate(yad2_request_latency_seconds_bucket[5m]))",
+          "legendFormat": "p99"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "LLM Calls — success / refusal / error",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 6, "w": 12, "h": 6 },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "yad2prometheus" },
+          "expr": "sum by (status) (rate(yad2_llm_calls_total[1m]))",
+          "legendFormat": "{{status}}"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Token Usage (input / output per minute)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 12, "w": 12, "h": 6 },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "yad2prometheus" },
+          "expr": "sum(rate(yad2_llm_tokens_input_total[1m])) * 60",
+          "legendFormat": "input tokens/min"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "yad2prometheus" },
+          "expr": "sum(rate(yad2_llm_tokens_output_total[1m])) * 60",
+          "legendFormat": "output tokens/min"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "LLM Cost (USD / hour)",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 12, "w": 12, "h": 6 },
+      "fieldConfig": {
+        "defaults": { "unit": "currencyUSD" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "yad2prometheus" },
+          "expr": "sum(rate(yad2_llm_cost_usd_total[1m])) * 3600",
+          "legendFormat": "USD/hour"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Security Events",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 18, "w": 12, "h": 6 },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "yad2prometheus" },
+          "expr": "sum by (flag_type) (rate(yad2_security_events_total[1m]))",
+          "legendFormat": "flagged: {{flag_type}}"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "yad2prometheus" },
+          "expr": "rate(yad2_injections_confirmed_total[1m])",
+          "legendFormat": "confirmed injections"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "title": "Requests by Vertical (total)",
+      "type": "piechart",
+      "gridPos": { "x": 12, "y": 18, "w": 12, "h": 6 },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "yad2prometheus" },
+          "expr": "sum by (category) (yad2_requests_total)",
+          "legendFormat": "{{category}}"
+        }
+      ]
+    }
+  ]
+}

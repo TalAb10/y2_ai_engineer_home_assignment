@@ -1,0 +1,522 @@
+[
+  {
+    "value": "טויוטה",
+    "field_type": "manufacturer"
+  },
+  {
+    "value": "BYD",
+    "field_type": "manufacturer"
+  },
+  {
+    "value": "אאודי",
+    "field_type": "manufacturer"
+  },
+  {
+    "value": "סוזוקי",
+    "field_type": "manufacturer"
+  },
+  {
+    "value": "מרצדס",
+    "field_type": "manufacturer"
+  },
+  {
+    "value": "ב.מ.וו",
+    "field_type": "manufacturer"
+  },
+  {
+    "value": "MG",
+    "field_type": "manufacturer"
+  },
+  {
+    "value": "טסלה",
+    "field_type": "manufacturer"
+  },
+  {
+    "value": "מאזדה",
+    "field_type": "manufacturer"
+  },
+  {
+    "value": "שברולט",
+    "field_type": "manufacturer"
+  },
+  {
+    "value": "יונדאי",
+    "field_type": "manufacturer"
+  },
+  {
+    "value": "קיה",
+    "field_type": "manufacturer"
+  },
+  {
+    "value": "אלנטרה",
+    "field_type": "model"
+  },
+  {
+    "value": "HS",
+    "field_type": "model"
+  },
+  {
+    "value": "MG4 Electric",
+    "field_type": "model"
+  },
+  {
+    "value": "CX-5",
+    "field_type": "model"
+  },
+  {
+    "value": "6",
+    "field_type": "model"
+  },
+  {
+    "value": "קרוז",
+    "field_type": "model"
+  },
+  {
+    "value": "ZS",
+    "field_type": "model"
+  },
+  {
+    "value": "3",
+    "field_type": "model"
+  },
+  {
+    "value": "C-Class",
+    "field_type": "model"
+  },
+  {
+    "value": "EV6",
+    "field_type": "model"
+  },
+  {
+    "value": "קורולה",
+    "field_type": "model"
+  },
+  {
+    "value": "5 Series",
+    "field_type": "model"
+  },
+  {
+    "value": "Q5",
+    "field_type": "model"
+  },
+  {
+    "value": "מאליבו",
+    "field_type": "model"
+  },
+  {
+    "value": "A-Class",
+    "field_type": "model"
+  },
+  {
+    "value": "i10",
+    "field_type": "model"
+  },
+  {
+    "value": "ויטארה",
+    "field_type": "model"
+  },
+  {
+    "value": "3 Series",
+    "field_type": "model"
+  },
+  {
+    "value": "טוסון",
+    "field_type": "model"
+  },
+  {
+    "value": "i20",
+    "field_type": "model"
+  },
+  {
+    "value": "i4",
+    "field_type": "model"
+  },
+  {
+    "value": "A3",
+    "field_type": "model"
+  },
+  {
+    "value": "קרוסאובר",
+    "field_type": "model"
+  },
+  {
+    "value": "Model Y",
+    "field_type": "model"
+  },
+  {
+    "value": "Model X",
+    "field_type": "model"
+  },
+  {
+    "value": "E-Class",
+    "field_type": "model"
+  },
+  {
+    "value": "MX-5",
+    "field_type": "model"
+  },
+  {
+    "value": "דולפין",
+    "field_type": "model"
+  },
+  {
+    "value": "X3",
+    "field_type": "model"
+  },
+  {
+    "value": "אטו 3",
+    "field_type": "model"
+  },
+  {
+    "value": "סיל",
+    "field_type": "model"
+  },
+  {
+    "value": "קונה",
+    "field_type": "model"
+  },
+  {
+    "value": "ספארק",
+    "field_type": "model"
+  },
+  {
+    "value": "ראב4",
+    "field_type": "model"
+  },
+  {
+    "value": "2",
+    "field_type": "model"
+  },
+  {
+    "value": "פיקנטו",
+    "field_type": "model"
+  },
+  {
+    "value": "סראטו",
+    "field_type": "model"
+  },
+  {
+    "value": "סופרה",
+    "field_type": "model"
+  },
+  {
+    "value": "ספורטאז׳",
+    "field_type": "model"
+  },
+  {
+    "value": "GLC",
+    "field_type": "model"
+  },
+  {
+    "value": "Model 3",
+    "field_type": "model"
+  },
+  {
+    "value": "1 Series",
+    "field_type": "model"
+  },
+  {
+    "value": "Q3",
+    "field_type": "model"
+  },
+  {
+    "value": "e-tron",
+    "field_type": "model"
+  },
+  {
+    "value": "יאריס",
+    "field_type": "model"
+  },
+  {
+    "value": "Model S",
+    "field_type": "model"
+  },
+  {
+    "value": "קאמרי",
+    "field_type": "model"
+  },
+  {
+    "value": "A4",
+    "field_type": "model"
+  },
+  {
+    "value": "איוניק",
+    "field_type": "model"
+  },
+  {
+    "value": "סוויפט",
+    "field_type": "model"
+  },
+  {
+    "value": "אקוינוקס",
+    "field_type": "model"
+  },
+  {
+    "value": "היברידי נטען",
+    "field_type": "fuel_type"
+  },
+  {
+    "value": "גז",
+    "field_type": "fuel_type"
+  },
+  {
+    "value": "היברידי",
+    "field_type": "fuel_type"
+  },
+  {
+    "value": "חשמלי",
+    "field_type": "fuel_type"
+  },
+  {
+    "value": "דיזל",
+    "field_type": "fuel_type"
+  },
+  {
+    "value": "בנזין",
+    "field_type": "fuel_type"
+  },
+  {
+    "value": "אוטומטית",
+    "field_type": "gearbox"
+  },
+  {
+    "value": "רובוטית",
+    "field_type": "gearbox"
+  },
+  {
+    "value": "ידנית",
+    "field_type": "gearbox"
+  },
+  {
+    "value": "CVT",
+    "field_type": "gearbox"
+  },
+  {
+    "value": "כחול",
+    "field_type": "color"
+  },
+  {
+    "value": "אדום",
+    "field_type": "color"
+  },
+  {
+    "value": "כסוף",
+    "field_type": "color"
+  },
+  {
+    "value": "לבן",
+    "field_type": "color"
+  },
+  {
+    "value": "ירוק",
+    "field_type": "color"
+  },
+  {
+    "value": "צהוב",
+    "field_type": "color"
+  },
+  {
+    "value": "אפור",
+    "field_type": "color"
+  },
+  {
+    "value": "שחור",
+    "field_type": "color"
+  },
+  {
+    "value": "דו משפחתי",
+    "field_type": "property_type"
+  },
+  {
+    "value": "דירה בבניין לשימור",
+    "field_type": "property_type"
+  },
+  {
+    "value": "מיני פנטהאוז",
+    "field_type": "property_type"
+  },
+  {
+    "value": "דירת גן",
+    "field_type": "property_type"
+  },
+  {
+    "value": "דירת יוקרה",
+    "field_type": "property_type"
+  },
+  {
+    "value": "דירה",
+    "field_type": "property_type"
+  },
+  {
+    "value": "יחידת דיור",
+    "field_type": "property_type"
+  },
+  {
+    "value": "גג/טיפוס",
+    "field_type": "property_type"
+  },
+  {
+    "value": "קוטג׳",
+    "field_type": "property_type"
+  },
+  {
+    "value": "בית פרטי/וילה",
+    "field_type": "property_type"
+  },
+  {
+    "value": "מרתף",
+    "field_type": "property_type"
+  },
+  {
+    "value": "פנטהאוז",
+    "field_type": "property_type"
+  },
+  {
+    "value": "דופלקס",
+    "field_type": "property_type"
+  },
+  {
+    "value": "דירת סטודיו",
+    "field_type": "property_type"
+  },
+  {
+    "value": "דירת נופש",
+    "field_type": "property_type"
+  },
+  {
+    "value": "מכירה",
+    "field_type": "transaction_mode"
+  },
+  {
+    "value": "שותפים",
+    "field_type": "transaction_mode"
+  },
+  {
+    "value": "מגרשים",
+    "field_type": "transaction_mode"
+  },
+  {
+    "value": "מסחרי",
+    "field_type": "transaction_mode"
+  },
+  {
+    "value": "השכרה",
+    "field_type": "transaction_mode"
+  },
+  {
+    "value": "ירושלים",
+    "field_type": "city"
+  },
+  {
+    "value": "באר שבע",
+    "field_type": "city"
+  },
+  {
+    "value": "תל אביב-יפו",
+    "field_type": "city"
+  },
+  {
+    "value": "חיפה",
+    "field_type": "city"
+  },
+  {
+    "value": "רמת גן",
+    "field_type": "city"
+  },
+  {
+    "value": "משופץ",
+    "field_type": "condition"
+  },
+  {
+    "value": "דורש שיפוץ",
+    "field_type": "condition"
+  },
+  {
+    "value": "שמור",
+    "field_type": "condition"
+  },
+  {
+    "value": "חדש",
+    "field_type": "condition"
+  },
+  {
+    "value": "לתינוקות_וסופגנים",
+    "field_type": "sector"
+  },
+  {
+    "value": "ספורט_וקמפינג",
+    "field_type": "sector"
+  },
+  {
+    "value": "ריהוט",
+    "field_type": "sector"
+  },
+  {
+    "value": "אלקטרוניקה",
+    "field_type": "sector"
+  },
+  {
+    "value": "מוסיקה_וכלים",
+    "field_type": "sector"
+  },
+  {
+    "value": "מוצצים_ובקבוקים",
+    "field_type": "subcategory"
+  },
+  {
+    "value": "חדר_שינה",
+    "field_type": "subcategory"
+  },
+  {
+    "value": "אופניים",
+    "field_type": "subcategory"
+  },
+  {
+    "value": "קלידים",
+    "field_type": "subcategory"
+  },
+  {
+    "value": "גיטרות",
+    "field_type": "subcategory"
+  },
+  {
+    "value": "פינת_אוכל",
+    "field_type": "subcategory"
+  },
+  {
+    "value": "מחשבים_ניידים",
+    "field_type": "subcategory"
+  },
+  {
+    "value": "טלוויזיות",
+    "field_type": "subcategory"
+  },
+  {
+    "value": "ציוד_כושר",
+    "field_type": "subcategory"
+  },
+  {
+    "value": "טלפונים_סלולריים",
+    "field_type": "subcategory"
+  },
+  {
+    "value": "עגלות",
+    "field_type": "subcategory"
+  },
+  {
+    "value": "סלון",
+    "field_type": "subcategory"
+  },
+  {
+    "value": "כמו חדש",
+    "field_type": "condition"
+  },
+  {
+    "value": "משומש",
+    "field_type": "condition"
+  },
+  {
+    "value": "לחלפים",
+    "field_type": "condition"
+  }
+]
